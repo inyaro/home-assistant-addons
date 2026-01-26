@@ -8,7 +8,7 @@ _Homebridge - HomeKit support for the impatient._
 
 ## About
 
-This uses the latest official unmodified [Docker image of Homebridge](https://hub.docker.com/r/homebridge/homebridge) as a Home Assistant Add-on.
+This uses the latest official unmodified Beta [Docker image of Homebridge](https://hub.docker.com/r/homebridge/homebridge) as a Home Assistant Add-on.
 
 Allows running Nfarina's Homebridge on your home network which emulates the iOS HomeKit API.
 
