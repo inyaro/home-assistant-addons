@@ -1,0 +1,79 @@
+name: Bump Homebridge Beta Tag
+
+on:
+  schedule:
+    - cron: "17 */6 * * *"   # alle 6h (kannst du ändern)
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Fetch latest beta-* tag from Docker Hub
+        id: tag
+        run: |
+          set -euo pipefail
+
+          # Docker Hub tags API (public)
+          JSON="$(curl -fsSL 'https://hub.docker.com/v2/repositories/homebridge/homebridge/tags?page_size=100')"
+
+          # Nimm den neuesten Tag, der mit "beta-" beginnt (nach last_updated sortiert)
+          LATEST="$(echo "$JSON" | jq -r '
+            .results
+            | map(select(.name | startswith("beta-")))
+            | sort_by(.last_updated)
+            | last
+            | .name
+          ')"
+
+          if [ -z "$LATEST" ] || [ "$LATEST" = "null" ]; then
+            echo "Konnte keinen beta-* Tag finden."
+            exit 1
+          fi
+
+          echo "latest=$LATEST" >> "$GITHUB_OUTPUT"
+          echo "Latest beta tag: $LATEST"
+
+      - name: Update add-on config.yaml version
+        run: |
+          set -euo pipefail
+          LATEST="${{ steps.tag.outputs.latest }}"
+
+          FILE="homebridge/config.yaml"   # <- falls dein Pfad anders ist: hier anpassen
+
+          if [ ! -f "$FILE" ]; then
+            echo "File not found: $FILE"
+            ls -la
+            exit 1
+          fi
+
+          # version: ... ersetzen (egal ob mit/ohne Quotes)
+          # Ergebnis: version: "beta-YYYY-MM-DD"
+          sed -i -E "s/^version:\s*.*/version: \"${LATEST}\"/g" "$FILE"
+
+          echo "Updated $FILE:"
+          grep -nE '^version:' "$FILE"
+
+      - name: Commit & push if changed
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo "No changes."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add homebridge/config.yaml
+          git commit -m "chore(homebridge): bump to latest beta tag"
+          git push
